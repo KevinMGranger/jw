@@ -10,7 +10,6 @@ import (
 	"net/http"
 	"net/url"
 	"os"
-	"os/exec"
 	"path"
 	"strings"
 )
@@ -152,12 +151,6 @@ func init() {
 
 	allGood = true
 
-	_, err := exec.LookPath("lnav")
-	if err != nil {
-		fmt.Fprintln(os.Stderr, "lnav is not installed")
-		allGood = false
-	}
-
 	if user == "" {
 		fmt.Fprintln(os.Stderr, "JENKINS_USER must be set")
 		allGood = false
@@ -177,7 +170,6 @@ func die(v ...interface{}) {
 }
 
 func main() {
-
 	url := flag.Arg(0)
 	if url == "" {
 		fmt.Fprintln(os.Stderr, "url for jenkins job must be given")
@@ -198,15 +190,9 @@ func main() {
 		die(err)
 	}
 
-	cmd := exec.Command("lnav", flag.Args()[1:]...)
-	cmd.Stdin = &reader
+	_, err = io.Copy(os.Stdout, &reader)
 
-	err = cmd.Run()
 	if err != nil {
-		if exitErr, ok := err.(*exec.ExitError); ok {
-			os.Exit(exitErr.ExitCode())
-		}
-
 		die(err)
 	}
 }
