@@ -140,6 +140,7 @@ var (
 	insecure bool
 	user     string
 	key      string
+	jobUrl   string
 	allGood  bool
 )
 
@@ -161,6 +162,16 @@ func init() {
 	}
 
 	flag.Parse()
+
+	jobUrl = flag.Arg(0)
+	if jobUrl == "" {
+		fmt.Fprintln(os.Stderr, "url for jenkins job must be given")
+		allGood = false
+	}
+
+	if !allGood {
+		os.Exit(1)
+	}
 }
 
 // Print to stderr and exit with a status of 1.
@@ -170,17 +181,7 @@ func die(v ...interface{}) {
 }
 
 func main() {
-	url := flag.Arg(0)
-	if url == "" {
-		fmt.Fprintln(os.Stderr, "url for jenkins job must be given")
-		allGood = false
-	}
-
-	if !allGood {
-		os.Exit(1)
-	}
-
-	reader, err := newJenkinsReader(user, key, url)
+	reader, err := newJenkinsReader(user, key, jobUrl)
 	if err != nil {
 		die(err)
 	}
