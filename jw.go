@@ -30,7 +30,7 @@ type jenkinsReader struct {
 func newJenkinsReader(username, key, job string) (reader jenkinsReader, err error) {
 	transport := http.DefaultTransport.(*http.Transport)
 	transport.TLSClientConfig = &tls.Config{
-		InsecureSkipVerify: *insecure,
+		InsecureSkipVerify: insecure,
 	}
 
 	reader = jenkinsReader{
@@ -55,7 +55,6 @@ func newJenkinsReader(username, key, job string) (reader jenkinsReader, err erro
 	return
 }
 
-// TODO: this could be part of the RoundTripper instead.
 func (reader *jenkinsReader) setAuth(req *http.Request) {
 	req.SetBasicAuth(reader.username, reader.key)
 }
@@ -138,22 +137,26 @@ func (reader *jenkinsReader) Read(p []byte) (n int, err error) {
 	return
 }
 
-var insecure = flag.Bool("k", false, "Does not check TLS certs when set.")
+var (
+	insecure bool
+	user     string
+	key      string
+	allGood  bool
+)
 
-func main() {
-	allGood := true
+func init() {
+	flag.BoolVar(&insecure, "k", false, "Does not check TLS certs when set.")
+
+	user = os.Getenv("JENKINS_USER")
+	key = os.Getenv("JENKINS_KEY")
+
+	allGood = true
 
 	_, err := exec.LookPath("lnav")
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "lnav is not installed")
 		allGood = false
 	}
-
-	flag.Parse()
-
-	user := os.Getenv("JENKINS_USER")
-	key := os.Getenv("JENKINS_KEY")
-	url := flag.Arg(0)
 
 	if user == "" {
 		fmt.Fprintln(os.Stderr, "JENKINS_USER must be set")
@@ -163,6 +166,19 @@ func main() {
 		fmt.Fprintln(os.Stderr, "JENKINS_KEY must be set")
 		allGood = false
 	}
+
+	flag.Parse()
+}
+
+// Print to stderr and exit with a status of 1.
+func die(v ...interface{}) {
+	fmt.Fprintln(os.Stderr, v...)
+	os.Exit(1)
+}
+
+func main() {
+
+	url := flag.Arg(0)
 	if url == "" {
 		fmt.Fprintln(os.Stderr, "url for jenkins job must be given")
 		allGood = false
@@ -174,24 +190,23 @@ func main() {
 
 	reader, err := newJenkinsReader(user, key, url)
 	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
+		die(err)
 	}
 
 	err = reader.check()
-
 	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
+		die(err)
 	}
 
-	cmd := exec.Command("tee", "/tmp/jenkwatchtest")
+	cmd := exec.Command("lnav", flag.Args()[1:]...)
 	cmd.Stdin = &reader
 
 	err = cmd.Run()
-
 	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
+		if exitErr, ok := err.(*exec.ExitError); ok {
+			os.Exit(exitErr.ExitCode())
+		}
+
+		die(err)
 	}
 }
